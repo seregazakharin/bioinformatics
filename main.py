@@ -1,5 +1,8 @@
+import csv
+
 import numpy as np
 from collections import defaultdict
+from tqdm import tqdm
 
 # сопоставление аминокислот числам
 aa_map = defaultdict(int)
@@ -61,14 +64,18 @@ def energy_metric(seq1, seq2):
     return np.linalg.norm(s1 - s2)
 
 
-def find_similar(user_seq, input_path, output_path):
+def find_similar(user_seq, input_path, output_path, top_n=0):
     # Список для хранения всех вычисленных записей
     metrics = []
     # Читаем все записи из FASTA-файла в список
     records = list(read_fasta_gz(input_path))
 
+    print(f"Загружено {len(records)} последовательностей для сравнения")
+    print("Начинаем обработку...")
+
     # Проходим по всем записям с индексом (i) и распаковываем (header, sequence)
-    for i, (header, seq) in enumerate(records):
+    # Используем tqdm для отображения прогресса
+    for i, (header, seq) in enumerate(tqdm(records, desc="Обработка последовательностей", unit="seq")):
         # Вычисляем метрику схожести между пользовательской последовательностью и текущей
         val = energy_metric(user_seq, seq)
         # вытащим название (например, "Frog virus ...")
@@ -77,30 +84,48 @@ def find_similar(user_seq, input_path, output_path):
 
     # Добавляем кортеж с данными в список метрик
     # Структура: (порядковый_индекс_в_файле, значение_метрики, сама_последовательность, описание_из_заголовка)
+    print("Сортировка результатов...")
     metrics_sorted = sorted(metrics, key=lambda x: x[1])
 
-    with open(output_path, "w") as f:
-        for idx, val, seq, descr in metrics_sorted:
-            # Записываем строку с информацией: индекс, метрика (6 знаков после запятой), длина, описание
-            f.write(f"Индекс: {idx}, Метрика: {val:.6f}, Длина: {len(seq)}, Описание: {descr}\n")
-            # Записываем саму последовательность и добавляем пустую строку для разделения записей
-            f.write(seq + "\n\n")
+    print("Сохранение в CSV формат...")
 
+    # Сохраняем только топ-N результатов в CSV файл
+    if top_n > 0:
+        metrics_sorted = metrics_sorted[:top_n]
+
+    with open(output_path, 'w', newline='', encoding='utf-8') as csvfile:
+        csv_writer = csv.writer(csvfile)
+        # Записываем заголовки
+        csv_writer.writerow(['Index', 'Metric', 'Length', 'Description', 'Sequence'])
+
+        # Записываем только топ-N результатов
+        for row in metrics_sorted:
+            csv_writer.writerow(row)
+
+
+    print(f"Топ-{top_n} результатов сохранён в {output_path}")
     print("Результат сохранён в", output_path)
 
 
 def main():
     # путь к файлу с данными
     path = "uniprot_sprot.fasta"
-    
+
     # сюда будут записываться выходные данные
-    output_path = "sorted_by_user_sequence.txt"
-    
+    output_path = "sorted_by_user_sequence.csv"
+
     # Пользователь вводит нужную последовательность для проверки
-    user_seq = input()
+    user_seq = input("Введите целевую последовательность: ")
+
+    # Запрашиваем у пользователя количество результатов для сохранения
+    try:
+        top_n = int(input("Сколько результатов сохранить? (по умолчанию все): "))
+    except ValueError:
+        top_n = 0
+        print("Используется значение по умолчанию: 0 - все строки")
 
     # Запуск алгоритма для строки, введенной пользователем
-    find_similar(user_seq, path, output_path)
+    find_similar(user_seq, path, output_path, top_n)
 
 
 if __name__ == "__main__":
