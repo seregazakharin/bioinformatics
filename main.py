@@ -90,8 +90,12 @@ def find_similar(user_seq, input_path, output_path):
 
 
 def main():
+    # путь к файлу с данными
     path = "uniprot_sprot.fasta"
+    
+    # сюда будут записываться выходные данные
     output_path = "sorted_by_user_sequence.txt"
+    
     # Пользователь вводит нужную последовательность для проверки
     user_seq = input()
 
